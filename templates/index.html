@@ -309,46 +309,61 @@ const fileName  = document.getElementById('file-name');
 const useStart  = document.getElementById('use-start');
 const startAddr = document.getElementById('start-address');
 
+// Store the selected file in a variable — pdfInput.files can be unreliable after drop
+let selectedFile = null;
+
+function setFile(file) {
+  selectedFile = file;
+  fileName.textContent = file.name;
+  processBtn.disabled = false;
+}
+
 pdfInput.addEventListener('change', () => {
-  if (pdfInput.files[0]) { fileName.textContent = pdfInput.files[0].name; processBtn.disabled = false; }
+  if (pdfInput.files[0]) setFile(pdfInput.files[0]);
 });
 dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('dragover'); });
 dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
 dropArea.addEventListener('drop', e => {
   e.preventDefault(); dropArea.classList.remove('dragover');
-  pdfInput.files = e.dataTransfer.files;
-  pdfInput.dispatchEvent(new Event('change'));
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
 });
 useStart.addEventListener('change', () => { startAddr.disabled = !useStart.checked; });
 
 // ── Main flow ─────────────────────────────────────────────────────────────────
 processBtn.addEventListener('click', async () => {
-  if (!pdfInput.files[0]) return;
+  if (!selectedFile) { showError('Veuillez sélectionner un fichier PDF.'); return; }
   hideError();
   summaryBar.style.display = 'none';
   stopsList.innerHTML = '';
   clearMap();
   processBtn.disabled = true;
   progressWrap.style.display = 'block';
-  progressLabel.textContent = 'Lecture du PDF…';
-  progressBar.style.width = '0';
+  progressLabel.textContent = '⏳ Envoi du PDF au serveur…';
+  progressBar.style.width = '5%';
 
   // 1. Extract addresses from PDF (server)
   const form = new FormData();
-  form.append('pdf', pdfInput.files[0]);
+  form.append('pdf', selectedFile);
   let addresses;
   try {
     const resp = await fetch('/extract', { method: 'POST', body: form });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      showError(`Erreur serveur (${resp.status}) : ${txt.slice(0, 300)}`);
+      processBtn.disabled = false;
+      progressWrap.style.display = 'none';
+      return;
+    }
     const data = await resp.json();
     if (data.error) {
-      showError(data.error + (data.preview ? '\n\nAperçu du texte détecté :\n' + data.preview : ''));
+      showError(data.error + (data.preview ? '\n\n── Texte extrait du PDF ──\n' + data.preview : ''));
       processBtn.disabled = false;
       progressWrap.style.display = 'none';
       return;
     }
     addresses = data.addresses;
   } catch (err) {
-    showError('Erreur de connexion : ' + err.message);
+    showError('Impossible de contacter le serveur : ' + err.message);
     processBtn.disabled = false;
     progressWrap.style.display = 'none';
     return;
