@@ -277,7 +277,7 @@ async function geocode(address) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ── Route optimization : nearest-neighbor + 2-opt ────────────────────────────
+// ── Route optimization : circular NN + circular 2-opt + cut at farthest ──────
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371, d2r = Math.PI / 180;
   const dlat = (lat2 - lat1) * d2r, dlon = (lon2 - lon1) * d2r;
@@ -285,16 +285,18 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.asin(Math.sqrt(a));
 }
 
-function totalDistance(route, sLat, sLon) {
-  let d = haversine(sLat, sLon, route[0].lat, route[0].lon);
-  for (let i = 0; i < route.length - 1; i++)
-    d += haversine(route[i].lat, route[i].lon, route[i+1].lat, route[i+1].lon);
+function circularTotalDist(route) {
+  let d = 0;
+  for (let i = 0; i < route.length; i++)
+    d += haversine(route[i].lat, route[i].lon, route[(i+1) % route.length].lat, route[(i+1) % route.length].lon);
   return d;
 }
 
-function nearestNeighbor(points, sLat, sLon) {
+// Nearest-neighbor building a circular tour (home at index 0)
+function circularNN(points, sLat, sLon) {
+  const home = { lat: sLat, lon: sLon, _home: true };
   const unvisited = [...points];
-  const route = [];
+  const route = [home];
   let curLat = sLat, curLon = sLon;
   while (unvisited.length) {
     let best = 0, bestDist = Infinity;
@@ -306,24 +308,23 @@ function nearestNeighbor(points, sLat, sLon) {
     curLat = chosen.lat; curLon = chosen.lon;
     route.push(chosen);
   }
-  return route;
+  return route; // [home, s1, s2, ..., sN], closing edge sN→home implicit
 }
 
-function twoOpt(route, sLat, sLon) {
-  // Open-path 2-opt: keep first stop free (no return to depot)
+// Circular 2-opt — considers all edges including the closing edge sN→home
+function circularTwoOpt(route) {
+  const n = route.length;
   let improved = true;
   while (improved) {
     improved = false;
-    for (let i = 0; i < route.length - 1; i++) {
-      for (let j = i + 2; j < route.length; j++) {
-        // Edge A→B = route[i] → route[i+1]
-        // Edge C→D = route[j] → route[j+1]  (skip last for open path)
-        if (j + 1 >= route.length) continue;
-        const A = route[i], B = route[i+1], C = route[j], D = route[j+1];
+    for (let i = 0; i < n - 1; i++) {
+      for (let j = i + 2; j < n; j++) {
+        const nextJ = (j + 1) % n;
+        if (nextJ === i) continue; // same edge, skip
+        const A = route[i], B = route[i+1], C = route[j], D = route[nextJ];
         const before = haversine(A.lat,A.lon,B.lat,B.lon) + haversine(C.lat,C.lon,D.lat,D.lon);
         const after  = haversine(A.lat,A.lon,C.lat,C.lon) + haversine(B.lat,B.lon,D.lat,D.lon);
         if (after < before - 0.001) {
-          // Reverse segment [i+1 .. j]
           let l = i + 1, r = j;
           while (l < r) { [route[l], route[r]] = [route[r], route[l]]; l++; r--; }
           improved = true;
@@ -331,7 +332,6 @@ function twoOpt(route, sLat, sLon) {
       }
     }
   }
-  return route;
 }
 
 function recalcDistances(route, sLat, sLon) {
@@ -349,13 +349,23 @@ function optimizeRoute(points, startLat, startLon) {
   const sLat = startLat ?? valid.reduce((s,p) => s+p.lat, 0) / valid.length;
   const sLon = startLon ?? valid.reduce((s,p) => s+p.lon, 0) / valid.length;
 
-  // Step 1 — nearest-neighbor seed
-  const seed = nearestNeighbor(valid, sLat, sLon);
-  const distBefore = totalDistance(seed, sLat, sLon);
+  // 1. Build circular tour: [home, s1, ..., sN]
+  const circ = circularNN(valid, sLat, sLon);
+  const distBefore = circularTotalDist(circ);
 
-  // Step 2 — 2-opt improvement
-  const route = twoOpt(seed, sLat, sLon);
-  const distAfter = totalDistance(route, sLat, sLon);
+  // 2. Circular 2-opt — optimise the full loop including return to home
+  circularTwoOpt(circ);
+  const distAfter = circularTotalDist(circ);
+
+  // 3. Remove home (index 0), then cut the circle at the farthest stop from home
+  //    → start far, naturally end near home (last stop before home in the circle)
+  const stops = circ.slice(1);
+  let farthestIdx = 0, maxDist = 0;
+  stops.forEach((p, i) => {
+    const d = haversine(sLat, sLon, p.lat, p.lon);
+    if (d > maxDist) { maxDist = d; farthestIdx = i; }
+  });
+  const route = [...stops.slice(farthestIdx), ...stops.slice(0, farthestIdx)];
 
   recalcDistances(route, sLat, sLon);
 
