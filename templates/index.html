@@ -41,11 +41,19 @@
 
     .start-option { margin-top: 12px; }
     .start-option label { font-size: .83rem; color: #555; display: flex; align-items: center; gap: 6px; cursor: pointer; }
-    .start-option input[type=text] {
-      width: 100%; margin-top: 6px; padding: 8px 10px;
+    .start-row { display: flex; gap: 6px; margin-top: 6px; }
+    .start-row input[type=text] {
+      flex: 1; padding: 8px 10px;
       border: 1px solid #ccc; border-radius: 6px; font-size: .83rem;
     }
-    .start-option input[type=text]:disabled { background: #f5f5f5; }
+    .start-row input[type=text]:disabled { background: #f5f5f5; }
+    .gps-btn {
+      padding: 0 10px; background: #e8f0fe; border: 1px solid #1a73e8;
+      border-radius: 6px; cursor: pointer; font-size: 1.1rem;
+      transition: background .2s; flex-shrink: 0;
+    }
+    .gps-btn:hover { background: #c6d8fc; }
+    .gps-btn:disabled { opacity: .4; cursor: not-allowed; }
 
     .btn-sample {
       display: block; width: 100%; margin-top: 12px;
@@ -142,7 +150,10 @@
         <label>
           <input type="checkbox" id="use-start"> Point de départ (entrepôt / domicile)
         </label>
-        <input type="text" id="start-address" placeholder="Ex: 1234 rue Principale, Montréal" disabled>
+        <div class="start-row">
+          <input type="text" id="start-address" placeholder="Ex: 1234 rue Principale, Montréal" disabled>
+          <button class="gps-btn" id="gps-btn" title="Utiliser ma position GPS" disabled>📍</button>
+        </div>
       </div>
 
       <a class="btn-sample" href="/static/clients_exemple.pdf" download>
@@ -211,13 +222,18 @@ function drawRoute(route) {
 
 // ── Geocoding (via serveur — clé API gardée sécurisée) ───────────────────────
 async function geocode(address) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 12000);
   try {
-    const r = await fetch('/geocode?address=' + encodeURIComponent(address));
+    const r = await fetch('/geocode?address=' + encodeURIComponent(address), { signal: ctrl.signal });
+    clearTimeout(timer);
     const d = await r.json();
     if (d.found) return { lat: d.lat, lon: d.lon, display: d.display };
     return { lat: null, lon: null, reason: d.reason };
-  } catch (_) {}
-  return { lat: null, lon: null, reason: 'NETWORK_ERROR' };
+  } catch (e) {
+    clearTimeout(timer);
+    return { lat: null, lon: null, reason: e.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK_ERROR' };
+  }
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -308,6 +324,11 @@ const pdfInput  = document.getElementById('pdf-input');
 const fileName  = document.getElementById('file-name');
 const useStart  = document.getElementById('use-start');
 const startAddr = document.getElementById('start-address');
+const gpsBtn    = document.getElementById('gps-btn');
+
+// GPS-fixed coordinates (set when user clicks 📍)
+let gpsLat = null, gpsLon = null;
+let gpsMarker = null;
 
 // Store the selected file in a variable — pdfInput.files can be unreliable after drop
 let selectedFile = null;
@@ -327,7 +348,45 @@ dropArea.addEventListener('drop', e => {
   e.preventDefault(); dropArea.classList.remove('dragover');
   if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
 });
-useStart.addEventListener('change', () => { startAddr.disabled = !useStart.checked; });
+useStart.addEventListener('change', () => {
+  const on = useStart.checked;
+  startAddr.disabled = !on;
+  gpsBtn.disabled = !on;
+  if (!on) { gpsLat = null; gpsLon = null; if (gpsMarker) { map.removeLayer(gpsMarker); gpsMarker = null; } }
+});
+
+gpsBtn.addEventListener('click', () => {
+  if (!navigator.geolocation) { showError('Géolocalisation non supportée par ce navigateur.'); return; }
+  gpsBtn.textContent = '⏳';
+  gpsBtn.disabled = true;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      gpsLat = pos.coords.latitude;
+      gpsLon = pos.coords.longitude;
+      startAddr.value = '';
+      startAddr.placeholder = `📍 GPS : ${gpsLat.toFixed(5)}, ${gpsLon.toFixed(5)}`;
+      gpsBtn.textContent = '✅';
+      gpsBtn.disabled = false;
+      if (gpsMarker) map.removeLayer(gpsMarker);
+      const homeIcon = L.divIcon({
+        className: '',
+        html: `<div style="background:#e53935;color:white;border-radius:50%;width:32px;height:32px;
+          display:flex;align-items:center;justify-content:center;font-size:16px;
+          border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,.3)">🏠</div>`,
+        iconSize: [32, 32], iconAnchor: [16, 16]
+      });
+      gpsMarker = L.marker([gpsLat, gpsLon], { icon: homeIcon }).addTo(map).bindPopup('<b>Départ (GPS)</b>');
+      map.setView([gpsLat, gpsLon], 13);
+    },
+    err => {
+      gpsBtn.textContent = '📍';
+      gpsBtn.disabled = false;
+      const msgs = { 1: 'Permission refusée.', 2: 'Position introuvable.', 3: 'Délai dépassé.' };
+      showError('GPS : ' + (msgs[err.code] || err.message));
+    },
+    { timeout: 10000, enableHighAccuracy: true }
+  );
+});
 
 // ── Main flow ─────────────────────────────────────────────────────────────────
 processBtn.addEventListener('click', async () => {
@@ -373,21 +432,30 @@ processBtn.addEventListener('click', async () => {
   let provider = 'nominatim';
   try { const p = await fetch('/geocode/provider'); const pd = await p.json(); provider = pd.provider; } catch (_) {}
 
-  // 3. Geocode start point
+  // 3. Géocodage du point de départ
   let startLat = null, startLon = null;
-  if (useStart.checked && startAddr.value.trim()) {
-    progressLabel.textContent = 'Géocodage du point de départ…';
-    const pos = await geocode(startAddr.value.trim());
-    if (pos) {
-      startLat = pos.lat; startLon = pos.lon;
-      const homeIcon = L.divIcon({
-        className: '',
-        html: `<div style="background:#e53935;color:white;border-radius:50%;width:32px;height:32px;
-          display:flex;align-items:center;justify-content:center;font-size:16px;
-          border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,.3)">🏠</div>`,
-        iconSize: [32, 32], iconAnchor: [16, 16]
-      });
-      markers.push(L.marker([pos.lat, pos.lon], { icon: homeIcon }).addTo(map).bindPopup('<b>Départ</b>'));
+  if (useStart.checked) {
+    if (gpsLat !== null) {
+      // GPS déjà obtenu — pas besoin de géocoder
+      startLat = gpsLat; startLon = gpsLon;
+      if (gpsMarker) markers.push(gpsMarker);
+    } else if (startAddr.value.trim()) {
+      progressLabel.textContent = '⏳ Géocodage du point de départ…';
+      progressBar.style.width = '10%';
+      const pos = await geocode(startAddr.value.trim());
+      if (pos?.lat) {
+        startLat = pos.lat; startLon = pos.lon;
+        const homeIcon = L.divIcon({
+          className: '',
+          html: `<div style="background:#e53935;color:white;border-radius:50%;width:32px;height:32px;
+            display:flex;align-items:center;justify-content:center;font-size:16px;
+            border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,.3)">🏠</div>`,
+          iconSize: [32, 32], iconAnchor: [16, 16]
+        });
+        markers.push(L.marker([startLat, startLon], { icon: homeIcon }).addTo(map).bindPopup('<b>Départ</b>'));
+      } else {
+        showError(`Point de départ non trouvé (${pos?.reason ?? 'ZERO_RESULTS'}). La route sera optimisée depuis le centre des adresses.`);
+      }
     }
   }
 
