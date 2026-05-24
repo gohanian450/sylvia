@@ -499,39 +499,45 @@ function downloadRoutePdf(route, totalKm, startLabel) {
   doc.save(`trajet_${new Date().toISOString().slice(0,10)}.pdf`);
 }
 
-const GMAPS_MAX = 10; // Google Maps free: 10 waypoints = 12 total stops
+const GMAPS_LIMIT = 12; // Google Maps gratuit : 12 stops max par URL
+
+function addrText(stop) {
+  const src = stop.display || stop.raw;
+  return src.split(',').slice(0, 3).join(',').trim();
+}
 
 function buildGmapsGroups(route, startLat, startLon) {
-  const geocoded = route.filter(p => p.lat != null);
-  if (!geocoded.length) return [];
+  const stops = route.filter(p => p.lat != null);
+  if (!stops.length) return [];
 
   const groups = [];
   let offset = 0;
-  let groupNum = 1;
 
-  while (offset < geocoded.length) {
-    const isFirst = offset === 0;
-    // First group: origin(start) + up to 10 waypoints + destination = 12 stops
-    // Other groups: last stop of prev group as origin + up to 10 waypoints + destination
-    const chunk = geocoded.slice(offset, offset + GMAPS_MAX + (isFirst ? 2 : 1));
+  while (offset < stops.length) {
     const parts = [];
+    const isFirst = offset === 0;
 
+    // Origin de ce segment
     if (isFirst && startLat != null) {
       parts.push(`${startLat},${startLon}`);
     } else if (!isFirst) {
-      const prev = geocoded[offset - 1];
-      parts.push(`${prev.lat},${prev.lon}`); // continue from last stop
+      parts.push(encodeURIComponent(addrText(stops[offset - 1])));
     }
-    chunk.forEach(p => parts.push(`${p.lat},${p.lon}`));
+
+    // Remplir jusqu'à la limite stricte de 12 stops dans l'URL
+    const slots = GMAPS_LIMIT - parts.length;
+    const chunk = stops.slice(offset, offset + slots);
+    chunk.forEach(p => parts.push(encodeURIComponent(addrText(p))));
 
     const startStop = offset + 1;
     const endStop   = offset + chunk.length;
     groups.push({
       url: 'https://www.google.com/maps/dir/' + parts.join('/'),
-      label: `Groupe ${groupNum} — Arrêts ${startStop} à ${endStop}`,
+      label: stops.length <= GMAPS_LIMIT && groups.length === 0
+        ? null
+        : `Groupe ${groups.length + 1} — Arrêts ${startStop} à ${endStop}`,
     });
     offset += chunk.length;
-    groupNum++;
   }
   return groups;
 }
@@ -760,13 +766,16 @@ processBtn.addEventListener('click', async () => {
 
   // Google Maps button(s)
   const groups = buildGmapsGroups(route, startLat, startLon);
-  if (groups.length === 1) {
+  const isSingle = groups.length === 1 && groups[0].label === null;
+  if (isSingle) {
+    // Un seul groupe — bouton simple
     gmapsBtn.href = groups[0].url;
     gmapsBtn.style.display = 'flex';
     gmapsGroups.style.display = 'none';
-  } else if (groups.length > 1) {
+  } else if (groups.length > 0) {
+    // Plusieurs groupes — boutons numérotés
     gmapsBtn.style.display = 'none';
-    gmapsGroups.innerHTML = `<div class="gmaps-groups">${groups.map((g, i) =>
+    gmapsGroups.innerHTML = `<div class="gmaps-groups">${groups.map(g =>
       `<a href="${g.url}" target="_blank">
         <img src="https://maps.google.com/mapfiles/ms/icons/red-dot.png" style="width:14px;height:14px">
         ${g.label}
