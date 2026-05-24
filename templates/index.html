@@ -120,6 +120,15 @@
     }
     .btn-gmaps:hover { background: #4285f4; color: white; }
 
+    .gmaps-groups { display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px; }
+    .gmaps-groups a {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 12px; border-radius: 7px; font-size: .83rem; font-weight: 600;
+      text-decoration: none; transition: opacity .2s;
+      border: 1.5px solid #4285f4; color: #4285f4; background: #fff;
+    }
+    .gmaps-groups a:hover { opacity: .8; background: #e8f0fe; }
+
     .btn-pdf {
       display: flex; align-items: center; justify-content: center; gap: 7px;
       margin-bottom: 12px; padding: 10px 14px;
@@ -178,8 +187,8 @@
       <a class="btn-sample" href="/static/clients_exemple.pdf" download>
         📥 PDF exemple simple (12 clients Montréal)
       </a>
-      <a class="btn-sample" href="/static/defi_livraison.pdf" download style="border-color:#e53935;color:#e53935">
-        🔥 PDF défi (18 clients éparpillés) — teste l'optimisation
+      <a class="btn-sample" href="/static/grand_montreal.pdf" download style="border-color:#e53935;color:#e53935">
+        🔥 PDF défi Grand Montréal (24 clients — île + Laval + Rive-Sud)
       </a>
 
       <button class="btn" id="process-btn" disabled>Analyser et trier les livraisons</button>
@@ -197,6 +206,7 @@
         <img src="https://maps.google.com/mapfiles/ms/icons/red-dot.png" style="width:16px;height:16px;vertical-align:middle;margin-right:6px">
         Ouvrir le trajet dans Google Maps
       </a>
+      <div id="gmaps-groups" style="display:none"></div>
       <button class="btn-pdf" id="pdf-btn" style="display:none">
         📄 Télécharger le trajet en PDF
       </button>
@@ -356,11 +366,12 @@ function optimizeRoute(points, startLat, startLon) {
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
-const errorBox   = document.getElementById('error-box');
-const summaryBar = document.getElementById('summary-bar');
-const gmapsBtn   = document.getElementById('gmaps-btn');
-const pdfBtn     = document.getElementById('pdf-btn');
-const stopsList  = document.getElementById('stops-list');
+const errorBox     = document.getElementById('error-box');
+const summaryBar   = document.getElementById('summary-bar');
+const gmapsBtn     = document.getElementById('gmaps-btn');
+const gmapsGroups  = document.getElementById('gmaps-groups');
+const pdfBtn       = document.getElementById('pdf-btn');
+const stopsList    = document.getElementById('stops-list');
 const progressWrap  = document.getElementById('progress-wrap');
 const progressLabel = document.getElementById('progress-label');
 const progressBar   = document.getElementById('progress-bar');
@@ -478,23 +489,41 @@ function downloadRoutePdf(route, totalKm, startLabel) {
   doc.save(`trajet_${new Date().toISOString().slice(0,10)}.pdf`);
 }
 
-function buildGmapsUrl(route, startLat, startLon) {
+const GMAPS_MAX = 10; // Google Maps free: 10 waypoints = 12 total stops
+
+function buildGmapsGroups(route, startLat, startLon) {
   const geocoded = route.filter(p => p.lat != null);
-  if (!geocoded.length) return null;
+  if (!geocoded.length) return [];
 
-  // Google Maps supports up to 10 waypoints (12 total stops)
-  const MAX = 10;
-  const stops = geocoded.slice(0, MAX + 2); // origin + 10 waypoints + destination
+  const groups = [];
+  let offset = 0;
+  let groupNum = 1;
 
-  const parts = [];
-  if (startLat != null) parts.push(`${startLat},${startLon}`);
-  stops.forEach(p => parts.push(`${p.lat},${p.lon}`));
+  while (offset < geocoded.length) {
+    const isFirst = offset === 0;
+    // First group: origin(start) + up to 10 waypoints + destination = 12 stops
+    // Other groups: last stop of prev group as origin + up to 10 waypoints + destination
+    const chunk = geocoded.slice(offset, offset + GMAPS_MAX + (isFirst ? 2 : 1));
+    const parts = [];
 
-  const url = 'https://www.google.com/maps/dir/' + parts.join('/');
-  const warning = geocoded.length > MAX + 2
-    ? ` (⚠ Google Maps gratuit: ${MAX + 2} arrêts max affichés sur ${geocoded.length})`
-    : '';
-  return { url, warning };
+    if (isFirst && startLat != null) {
+      parts.push(`${startLat},${startLon}`);
+    } else if (!isFirst) {
+      const prev = geocoded[offset - 1];
+      parts.push(`${prev.lat},${prev.lon}`); // continue from last stop
+    }
+    chunk.forEach(p => parts.push(`${p.lat},${p.lon}`));
+
+    const startStop = offset + 1;
+    const endStop   = offset + chunk.length;
+    groups.push({
+      url: 'https://www.google.com/maps/dir/' + parts.join('/'),
+      label: `Groupe ${groupNum} — Arrêts ${startStop} à ${endStop}`,
+    });
+    offset += chunk.length;
+    groupNum++;
+  }
+  return groups;
 }
 
 function setProgress(done, total) {
@@ -613,6 +642,8 @@ processBtn.addEventListener('click', async () => {
   hideError();
   summaryBar.style.display = 'none';
   gmapsBtn.style.display = 'none';
+  gmapsGroups.style.display = 'none';
+  gmapsGroups.innerHTML = '';
   pdfBtn.style.display = 'none';
   stopsList.innerHTML = '';
   clearMap();
@@ -717,13 +748,21 @@ processBtn.addEventListener('click', async () => {
     ? (gpsLat ? `GPS ${gpsLat.toFixed(4)}, ${gpsLon.toFixed(4)}` : startAddr.value.trim() || null)
     : null;
 
-  // Google Maps button
-  const gmaps = buildGmapsUrl(route, startLat, startLon);
-  if (gmaps) {
-    gmapsBtn.href = gmaps.url;
+  // Google Maps button(s)
+  const groups = buildGmapsGroups(route, startLat, startLon);
+  if (groups.length === 1) {
+    gmapsBtn.href = groups[0].url;
     gmapsBtn.style.display = 'flex';
-    gmapsBtn.title = gmaps.warning || '';
-    if (gmaps.warning) gmapsBtn.innerHTML += `<br><small style="font-weight:400;font-size:.72rem">${gmaps.warning}</small>`;
+    gmapsGroups.style.display = 'none';
+  } else if (groups.length > 1) {
+    gmapsBtn.style.display = 'none';
+    gmapsGroups.innerHTML = `<div class="gmaps-groups">${groups.map((g, i) =>
+      `<a href="${g.url}" target="_blank">
+        <img src="https://maps.google.com/mapfiles/ms/icons/red-dot.png" style="width:14px;height:14px">
+        ${g.label}
+      </a>`
+    ).join('')}</div>`;
+    gmapsGroups.style.display = 'block';
   } else {
     gmapsBtn.style.display = 'none';
   }
