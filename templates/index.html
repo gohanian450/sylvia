@@ -47,6 +47,15 @@
     }
     .start-option input[type=text]:disabled { background: #f5f5f5; }
 
+    .btn-sample {
+      display: block; width: 100%; margin-top: 12px;
+      padding: 9px; background: #f0f4ff; color: #1a73e8;
+      border: 1.5px dashed #1a73e8; border-radius: 8px; font-size: .84rem;
+      cursor: pointer; font-weight: 500; text-align: center;
+      text-decoration: none; transition: background .2s;
+    }
+    .btn-sample:hover { background: #dce8ff; }
+
     .btn {
       display: block; width: 100%; margin-top: 12px;
       padding: 11px; background: #1a73e8; color: white;
@@ -135,6 +144,10 @@
         </label>
         <input type="text" id="start-address" placeholder="Ex: 1234 rue Principale, Montréal" disabled>
       </div>
+
+      <a class="btn-sample" href="/static/clients_exemple.pdf" download>
+        📥 Télécharger un PDF exemple (12 clients Montréal)
+      </a>
 
       <button class="btn" id="process-btn" disabled>Analyser et trier les livraisons</button>
 
