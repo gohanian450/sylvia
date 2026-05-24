@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Optimisation de livraison</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #222; }
@@ -112,12 +113,21 @@
 
     .btn-gmaps {
       display: flex; align-items: center; justify-content: center;
-      margin-bottom: 12px; padding: 10px 14px;
+      margin-bottom: 8px; padding: 10px 14px;
       background: #fff; border: 2px solid #4285f4; border-radius: 8px;
       color: #4285f4; font-weight: 700; font-size: .88rem;
       text-decoration: none; transition: background .2s, color .2s;
     }
     .btn-gmaps:hover { background: #4285f4; color: white; }
+
+    .btn-pdf {
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      margin-bottom: 12px; padding: 10px 14px;
+      background: #fff; border: 2px solid #e53935; border-radius: 8px;
+      color: #e53935; font-weight: 700; font-size: .88rem;
+      cursor: pointer; width: 100%; transition: background .2s, color .2s;
+    }
+    .btn-pdf:hover { background: #e53935; color: white; }
 
     .error-box {
       background: #fce8e8; border: 1px solid #f44; border-radius: 8px;
@@ -187,6 +197,9 @@
         <img src="https://maps.google.com/mapfiles/ms/icons/red-dot.png" style="width:16px;height:16px;vertical-align:middle;margin-right:6px">
         Ouvrir le trajet dans Google Maps
       </a>
+      <button class="btn-pdf" id="pdf-btn" style="display:none">
+        📄 Télécharger le trajet en PDF
+      </button>
       <div id="stops-list"></div>
     </div>
   </aside>
@@ -346,6 +359,7 @@ function optimizeRoute(points, startLat, startLon) {
 const errorBox   = document.getElementById('error-box');
 const summaryBar = document.getElementById('summary-bar');
 const gmapsBtn   = document.getElementById('gmaps-btn');
+const pdfBtn     = document.getElementById('pdf-btn');
 const stopsList  = document.getElementById('stops-list');
 const progressWrap  = document.getElementById('progress-wrap');
 const progressLabel = document.getElementById('progress-label');
@@ -354,6 +368,115 @@ const processBtn    = document.getElementById('process-btn');
 
 function showError(msg) { errorBox.textContent = msg; errorBox.style.display = 'block'; }
 function hideError()    { errorBox.style.display = 'none'; }
+
+function downloadRoutePdf(route, totalKm, startLabel) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'letter' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 18;
+  const colW = pageW - margin * 2;
+  let y = margin;
+
+  // ── Header ──
+  doc.setFillColor(26, 115, 232);
+  doc.rect(0, 0, pageW, 22, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('Trajet de livraison optimise', margin, 14);
+
+  const today = new Date().toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(today, pageW - margin, 14, { align: 'right' });
+
+  y = 32;
+
+  // ── Summary box ──
+  doc.setFillColor(232, 240, 254);
+  doc.roundedRect(margin, y, colW, 14, 3, 3, 'F');
+  doc.setTextColor(26, 115, 232);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  const geocoded = route.filter(p => p.lat != null).length;
+  doc.text(`${route.length} arrets  |  Distance estimee : ${Math.round(totalKm * 10) / 10} km  |  Adresses geoloc. : ${geocoded}/${route.length}`, margin + 4, y + 9);
+  if (startLabel) {
+    y += 14;
+    doc.setFillColor(255, 243, 243);
+    doc.roundedRect(margin, y, colW, 10, 2, 2, 'F');
+    doc.setTextColor(180, 0, 0);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Depart : ' + startLabel, margin + 4, y + 7);
+  }
+  y += 20;
+
+  // ── Table header ──
+  doc.setFillColor(50, 50, 50);
+  doc.rect(margin, y, colW, 8, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('#',        margin + 3, y + 5.5);
+  doc.text('Adresse', margin + 14, y + 5.5);
+  doc.text('Distance', pageW - margin - 2, y + 5.5, { align: 'right' });
+  y += 8;
+
+  // ── Rows ──
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+
+  route.forEach((stop, i) => {
+    if (y > doc.internal.pageSize.getHeight() - 20) {
+      doc.addPage();
+      y = margin;
+    }
+    const rowH = 9;
+    const fill = i % 2 === 0 ? [245, 248, 255] : [255, 255, 255];
+    doc.setFillColor(...fill);
+    doc.rect(margin, y, colW, rowH, 'F');
+
+    // stop number circle
+    doc.setFillColor(stop.lat != null ? 26 : 150, stop.lat != null ? 115 : 150, stop.lat != null ? 232 : 150);
+    doc.circle(margin + 5, y + 4.5, 3.5, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(7);
+    doc.text(String(i + 1), margin + 5, y + 5.8, { align: 'center' });
+
+    // address text
+    doc.setTextColor(30, 30, 30);
+    doc.setFontSize(8);
+    const maxLen = 75;
+    const addrText = stop.raw.length > maxLen ? stop.raw.slice(0, maxLen) + '...' : stop.raw;
+    doc.text(addrText, margin + 12, y + 5.8);
+
+    // distance
+    doc.setTextColor(26, 115, 232);
+    doc.setFontSize(8);
+    if (stop.lat != null) {
+      doc.text(`+${stop.distFromPrev} km`, pageW - margin - 2, y + 5.8, { align: 'right' });
+    } else {
+      doc.setTextColor(180, 0, 0);
+      doc.text('non geolocalisee', pageW - margin - 2, y + 5.8, { align: 'right' });
+    }
+
+    // separator line
+    doc.setDrawColor(220, 220, 220);
+    doc.line(margin, y + rowH, margin + colW, y + rowH);
+    y += rowH;
+  });
+
+  // ── Footer ──
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    doc.setFontSize(7);
+    doc.setTextColor(160, 160, 160);
+    doc.text(`Page ${p} / ${pageCount}  —  Genere par Sylvia Livraison`, pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
+  }
+
+  doc.save(`trajet_${new Date().toISOString().slice(0,10)}.pdf`);
+}
 
 function buildGmapsUrl(route, startLat, startLon) {
   const geocoded = route.filter(p => p.lat != null);
@@ -419,6 +542,9 @@ const gpsBtn    = document.getElementById('gps-btn');
 let gpsLat = null, gpsLon = null;
 let gpsMarker = null;
 
+// Current optimized route (kept for PDF download)
+let currentRoute = [], currentTotalKm = 0, currentStartLabel = null;
+
 // Store the selected file in a variable — pdfInput.files can be unreliable after drop
 let selectedFile = null;
 
@@ -437,6 +563,10 @@ dropArea.addEventListener('drop', e => {
   e.preventDefault(); dropArea.classList.remove('dragover');
   if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
 });
+pdfBtn.addEventListener('click', () => {
+  downloadRoutePdf(currentRoute, currentTotalKm, currentStartLabel);
+});
+
 useStart.addEventListener('change', () => {
   const on = useStart.checked;
   startAddr.disabled = !on;
@@ -483,6 +613,7 @@ processBtn.addEventListener('click', async () => {
   hideError();
   summaryBar.style.display = 'none';
   gmapsBtn.style.display = 'none';
+  pdfBtn.style.display = 'none';
   stopsList.innerHTML = '';
   clearMap();
   processBtn.disabled = true;
@@ -579,6 +710,13 @@ processBtn.addEventListener('click', async () => {
   summaryBar.style.display = 'block';
   summaryBar.innerHTML = `✅ <b>${route.length} arrêts</b> &nbsp;·&nbsp; Distance estimée : <b>${Math.round(totalKm * 10) / 10} km</b> ${providerBadge}${savingBadge}`;
 
+  // Store for PDF download
+  currentRoute = route;
+  currentTotalKm = Math.round(totalKm * 10) / 10;
+  currentStartLabel = useStart.checked
+    ? (gpsLat ? `GPS ${gpsLat.toFixed(4)}, ${gpsLon.toFixed(4)}` : startAddr.value.trim() || null)
+    : null;
+
   // Google Maps button
   const gmaps = buildGmapsUrl(route, startLat, startLon);
   if (gmaps) {
@@ -589,6 +727,9 @@ processBtn.addEventListener('click', async () => {
   } else {
     gmapsBtn.style.display = 'none';
   }
+
+  // PDF button
+  pdfBtn.style.display = route.length > 0 ? 'flex' : 'none';
 
   renderStops(route);
   drawRoute(route);
