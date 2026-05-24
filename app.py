@@ -181,3 +181,28 @@ def geocode():
 def geocode_provider():
     key = os.environ.get('GOOGLE_MAPS_API_KEY', '')
     return jsonify({'provider': 'google' if key else 'nominatim'})
+
+
+@app.route('/geocode/test')
+def geocode_test():
+    """Diagnostic endpoint — returns raw Google Maps API response."""
+    api_key = os.environ.get('GOOGLE_MAPS_API_KEY', '')
+    if not api_key:
+        return jsonify({'error': 'GOOGLE_MAPS_API_KEY non défini sur le serveur'})
+
+    test_address = '142 Rue Saint-Denis, Montreal, QC'
+    url = (
+        f"https://maps.googleapis.com/maps/api/geocode/json"
+        f"?address={quote(test_address)}&key={api_key}&region=ca"
+    )
+    try:
+        r = requests.get(url, timeout=8)
+        data = r.json()
+        return jsonify({
+            'status': data.get('status'),
+            'error_message': data.get('error_message', ''),
+            'results_count': len(data.get('results', [])),
+            'address_tested': test_address,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)})
