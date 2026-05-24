@@ -9,12 +9,23 @@ from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
 
-ADDRESS_PATTERNS = [
-    r'\b(\d{1,5}[\s,]+(?:rue|avenue|ave|boulevard|blvd|chemin|ch|route|rte|place|pl|côte|court|cr|drive|dr|lane|ln|way|wy|road|rd|street|st|boul|impasse|rang|montée|allée|terrasse|croissant)[^\n,]{2,60}(?:,\s*[^\n,]{2,60}){0,3}(?:\s+[A-Z]\d[A-Z]\s?\d[A-Z]\d)?)',
-    r'\b(\d{1,5},\s*(?:rue|avenue|ave|boulevard|blvd|chemin|ch|boul|route|rte|place|pl|côte|court|cr|drive|dr|road|rd|street|st|impasse|rang|montée|allée)[^\n]{5,80})',
-]
+# Street type keywords (FR + EN)
+_STREET_TYPES = (
+    r'rue|avenue|ave|boulevard|blvd|chemin|ch|route|rte|place|pl|'
+    r'côte|court|cr|drive|dr|lane|ln|road|rd|street|st|boul|'
+    r'impasse|rang|montée|allée|terrasse|croissant|way|wy'
+)
+
+# Phone number patterns to strip from the end of an address
+_PHONE_RE = re.compile(
+    r'\s*[\(\+]?[\d\s\-\.]{7,15}\d\s*$'
+)
+
+# Postal code (Canadian)
+_POSTAL_RE = re.compile(r'[A-Z]\d[A-Z]\s*\d[A-Z]\d', re.IGNORECASE)
 
 _nominatim_last_call = 0
+
 
 def extract_text(stream):
     text = ""
@@ -25,37 +36,71 @@ def extract_text(stream):
                 text += t + "\n"
     return text
 
+
+def clean_address(raw):
+    """Remove phone numbers and trailing junk, keep only the address part."""
+    # Strip phone number at end (e.g. 514-555-0101)
+    addr = re.sub(r'\s+\d{3}[\s.\-]\d{3}[\s.\-]\d{4}\s*$', '', raw)
+    # Strip any remaining trailing digits block (e.g. row numbers)
+    addr = re.sub(r'\s+\d{1,5}\s*$', '', addr)
+    # Collapse whitespace
+    addr = re.sub(r'\s+', ' ', addr).strip().rstrip(',').strip()
+    return addr
+
+
 def find_addresses(text):
+    """Extract street addresses from plain text."""
     addresses = []
     seen = set()
-    for pattern in ADDRESS_PATTERNS:
-        for match in re.finditer(pattern, text, re.IGNORECASE):
-            addr = re.sub(r'\s+', ' ', match.group(1).strip().rstrip(','))
-            if addr.lower() not in seen and len(addr) > 10:
-                seen.add(addr.lower())
-                addresses.append(addr)
+
+    pattern = re.compile(
+        r'\b(\d{1,5}[,\s]+(?:' + _STREET_TYPES + r')\b'
+        r'[^\n]{2,60}'
+        r'(?:,\s*[^\n,]{2,50}){0,3})',
+        re.IGNORECASE
+    )
+
+    for match in pattern.finditer(text):
+        addr = clean_address(match.group(1))
+        if len(addr) > 10 and addr.lower() not in seen:
+            seen.add(addr.lower())
+            addresses.append(addr)
+
     return addresses
 
+
+def _simplify(address):
+    """Return a simplified version of the address for fallback geocoding."""
+    # Drop postal code and everything after
+    addr = _POSTAL_RE.sub('', address).strip().rstrip(',').strip()
+    return addr
+
+
 def geocode_google(address, api_key):
-    url = f"https://maps.googleapis.com/maps/api/geocode/json?address={quote(address)}&key={api_key}&region=ca&language=fr"
-    r = requests.get(url, timeout=8)
-    data = r.json()
-    if data.get('status') == 'OK' and data.get('results'):
-        loc = data['results'][0]['geometry']['location']
-        return loc['lat'], loc['lng'], data['results'][0]['formatted_address']
-    return None, None, None
+    url = (
+        f"https://maps.googleapis.com/maps/api/geocode/json"
+        f"?address={quote(address)}&key={api_key}&region=ca&language=fr"
+    )
+    try:
+        r = requests.get(url, timeout=8)
+        data = r.json()
+        status = data.get('status', 'UNKNOWN')
+        if status == 'OK' and data.get('results'):
+            loc = data['results'][0]['geometry']['location']
+            return loc['lat'], loc['lng'], data['results'][0]['formatted_address'], None
+        return None, None, None, status   # return status so caller can log it
+    except Exception as e:
+        return None, None, None, str(e)
+
 
 def geocode_nominatim(address):
     global _nominatim_last_call
-    # respect 1 req/sec
     elapsed = time.time() - _nominatim_last_call
     if elapsed < 1.1:
         time.sleep(1.1 - elapsed)
 
     headers = {'User-Agent': 'sylvia-livraison/1.0 (gabohanian@gmail.com)'}
-
-    # Try with full address first, then simplified
-    queries = [address, re.sub(r',?\s*[A-Z]\d[A-Z]\s*\d[A-Z]\d', '', address).strip()]
+    queries = [address, _simplify(address)]
 
     for q in queries:
         for country in ['ca', '']:
@@ -63,21 +108,25 @@ def geocode_nominatim(address):
             if country:
                 params['countrycodes'] = country
             try:
-                r = requests.get('https://nominatim.openstreetmap.org/search',
-                                 params=params, headers=headers, timeout=8)
+                r = requests.get(
+                    'https://nominatim.openstreetmap.org/search',
+                    params=params, headers=headers, timeout=8
+                )
                 _nominatim_last_call = time.time()
                 data = r.json()
                 if data:
-                    return float(data[0]['lat']), float(data[0]['lon']), data[0]['display_name']
+                    return float(data[0]['lat']), float(data[0]['lon']), data[0]['display_name'], None
             except Exception:
                 pass
             time.sleep(0.3)
 
-    return None, None, None
+    return None, None, None, 'ZERO_RESULTS'
+
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/extract', methods=['POST'])
 def extract():
@@ -101,15 +150,15 @@ def extract():
 
     if not addresses:
         return jsonify({
-            'error': 'Aucune adresse trouvée. Vérifiez que le PDF contient des adresses de type "123 Rue des Érables".',
+            'error': 'Aucune adresse trouvée. Vérifiez que le PDF contient des adresses comme "123 Rue des Érables".',
             'preview': text[:600],
         }), 200
 
     return jsonify({'addresses': addresses})
 
+
 @app.route('/geocode')
 def geocode():
-    """Proxy endpoint — keeps API keys server-side."""
     address = request.args.get('address', '').strip()
     if not address:
         return jsonify({'error': 'Adresse manquante'}), 400
@@ -117,16 +166,18 @@ def geocode():
     api_key = os.environ.get('GOOGLE_MAPS_API_KEY', '')
 
     if api_key:
-        lat, lon, display = geocode_google(address, api_key)
+        lat, lon, display, err = geocode_google(address, api_key)
     else:
-        lat, lon, display = geocode_nominatim(address)
+        lat, lon, display, err = geocode_nominatim(address)
 
     if lat is None:
-        return jsonify({'found': False})
+        # err tells the frontend (and us) what went wrong
+        return jsonify({'found': False, 'reason': err or 'ZERO_RESULTS'})
+
     return jsonify({'found': True, 'lat': lat, 'lon': lon, 'display': display})
+
 
 @app.route('/geocode/provider')
 def geocode_provider():
-    """Let the frontend know which geocoder is active."""
     key = os.environ.get('GOOGLE_MAPS_API_KEY', '')
     return jsonify({'provider': 'google' if key else 'nominatim'})

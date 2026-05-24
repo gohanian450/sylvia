@@ -215,8 +215,9 @@ async function geocode(address) {
     const r = await fetch('/geocode?address=' + encodeURIComponent(address));
     const d = await r.json();
     if (d.found) return { lat: d.lat, lon: d.lon, display: d.display };
+    return { lat: null, lon: null, reason: d.reason };
   } catch (_) {}
-  return null;
+  return { lat: null, lon: null, reason: 'NETWORK_ERROR' };
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -286,7 +287,7 @@ function renderStops(route) {
           ? `<div class="stop-full">${stop.display}</div>` : ''}
         ${stop.lat != null
           ? `<div class="stop-dist">+${stop.distFromPrev} km depuis l'arrêt précédent</div>`
-          : `<div class="stop-dist warn">⚠ Adresse non géolocalisée</div>`}
+          : `<div class="stop-dist warn">⚠ Non géolocalisée${stop.reason ? ' — ' + stop.reason : ''}</div>`}
       </div>`;
     if (stop.lat != null) {
       card.addEventListener('click', () => {
@@ -385,6 +386,7 @@ processBtn.addEventListener('click', async () => {
       lat: pos?.lat ?? null,
       lon: pos?.lon ?? null,
       display: pos?.display ?? null,
+      reason: pos?.reason ?? null,
       distFromPrev: 0,
     });
   }
