@@ -277,7 +277,7 @@ async function geocode(address) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ── Route optimization : circular NN + circular 2-opt + cut at farthest ──────
+// ── Route optimization : circular NN + circular 2-opt + cut at farthest + open 2-opt ──
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371, d2r = Math.PI / 180;
   const dlat = (lat2 - lat1) * d2r, dlon = (lon2 - lon1) * d2r;
@@ -288,11 +288,11 @@ function haversine(lat1, lon1, lat2, lon2) {
 function circularTotalDist(route) {
   let d = 0;
   for (let i = 0; i < route.length; i++)
-    d += haversine(route[i].lat, route[i].lon, route[(i+1) % route.length].lat, route[(i+1) % route.length].lon);
+    d += haversine(route[i].lat, route[i].lon, route[(i+1)%route.length].lat, route[(i+1)%route.length].lon);
   return d;
 }
 
-// Nearest-neighbor building a circular tour (home at index 0)
+// Circular nearest-neighbor — home at index 0
 function circularNN(points, sLat, sLon) {
   const home = { lat: sLat, lon: sLon, _home: true };
   const unvisited = [...points];
@@ -308,10 +308,10 @@ function circularNN(points, sLat, sLon) {
     curLat = chosen.lat; curLon = chosen.lon;
     route.push(chosen);
   }
-  return route; // [home, s1, s2, ..., sN], closing edge sN→home implicit
+  return route;
 }
 
-// Circular 2-opt — considers all edges including the closing edge sN→home
+// Circular 2-opt — inclut l'arête de fermeture sN→home
 function circularTwoOpt(route) {
   const n = route.length;
   let improved = true;
@@ -320,12 +320,32 @@ function circularTwoOpt(route) {
     for (let i = 0; i < n - 1; i++) {
       for (let j = i + 2; j < n; j++) {
         const nextJ = (j + 1) % n;
-        if (nextJ === i) continue; // same edge, skip
+        if (nextJ === i) continue;
         const A = route[i], B = route[i+1], C = route[j], D = route[nextJ];
         const before = haversine(A.lat,A.lon,B.lat,B.lon) + haversine(C.lat,C.lon,D.lat,D.lon);
         const after  = haversine(A.lat,A.lon,C.lat,C.lon) + haversine(B.lat,B.lon,D.lat,D.lon);
         if (after < before - 0.001) {
-          let l = i + 1, r = j;
+          let l = i+1, r = j;
+          while (l < r) { [route[l], route[r]] = [route[r], route[l]]; l++; r--; }
+          improved = true;
+        }
+      }
+    }
+  }
+}
+
+// Open-path 2-opt — élimine les croisements sur le chemin ouvert après la coupure
+function openTwoOpt(route) {
+  let improved = true;
+  while (improved) {
+    improved = false;
+    for (let i = 0; i < route.length - 1; i++) {
+      for (let j = i + 2; j < route.length - 1; j++) {
+        const A = route[i], B = route[i+1], C = route[j], D = route[j+1];
+        const before = haversine(A.lat,A.lon,B.lat,B.lon) + haversine(C.lat,C.lon,D.lat,D.lon);
+        const after  = haversine(A.lat,A.lon,C.lat,C.lon) + haversine(B.lat,B.lon,D.lat,D.lon);
+        if (after < before - 0.001) {
+          let l = i+1, r = j;
           while (l < r) { [route[l], route[r]] = [route[r], route[l]]; l++; r--; }
           improved = true;
         }
@@ -349,16 +369,16 @@ function optimizeRoute(points, startLat, startLon) {
   const sLat = startLat ?? valid.reduce((s,p) => s+p.lat, 0) / valid.length;
   const sLon = startLon ?? valid.reduce((s,p) => s+p.lon, 0) / valid.length;
 
-  // 1. Build circular tour: [home, s1, ..., sN]
+  // 1. Tour circulaire : [home, s1, ..., sN]
   const circ = circularNN(valid, sLat, sLon);
   const distBefore = circularTotalDist(circ);
 
-  // 2. Circular 2-opt — optimise the full loop including return to home
+  // 2. 2-opt circulaire — optimise la boucle complète retour inclus
   circularTwoOpt(circ);
   const distAfter = circularTotalDist(circ);
 
-  // 3. Remove home (index 0), then cut the circle at the farthest stop from home
-  //    → start far, naturally end near home (last stop before home in the circle)
+  // 3. Couper le cercle au point le plus loin du départ
+  //    → 1er arrêt = le plus loin, dernier = naturellement proche du domicile
   const stops = circ.slice(1);
   let farthestIdx = 0, maxDist = 0;
   stops.forEach((p, i) => {
@@ -366,6 +386,9 @@ function optimizeRoute(points, startLat, startLon) {
     if (d > maxDist) { maxDist = d; farthestIdx = i; }
   });
   const route = [...stops.slice(farthestIdx), ...stops.slice(0, farthestIdx)];
+
+  // 4. 2-opt ouvert — élimine les croisements créés par la coupure
+  openTwoOpt(route);
 
   recalcDistances(route, sLat, sLon);
 
@@ -501,11 +524,6 @@ function downloadRoutePdf(route, totalKm, startLabel) {
 
 const GMAPS_LIMIT = 12; // Google Maps gratuit : 12 stops max par URL
 
-function addrText(stop) {
-  const src = stop.display || stop.raw;
-  return src.split(',').slice(0, 3).join(',').trim();
-}
-
 function buildGmapsGroups(route, startLat, startLon) {
   const stops = route.filter(p => p.lat != null);
   if (!stops.length) return [];
@@ -517,17 +535,18 @@ function buildGmapsGroups(route, startLat, startLon) {
     const parts = [];
     const isFirst = offset === 0;
 
-    // Origin de ce segment
+    // Origine de ce segment (coordonnées — précises et sans ambiguïté)
     if (isFirst && startLat != null) {
       parts.push(`${startLat},${startLon}`);
     } else if (!isFirst) {
-      parts.push(encodeURIComponent(addrText(stops[offset - 1])));
+      const prev = stops[offset - 1];
+      parts.push(`${prev.lat},${prev.lon}`);
     }
 
     // Remplir jusqu'à la limite stricte de 12 stops dans l'URL
     const slots = GMAPS_LIMIT - parts.length;
     const chunk = stops.slice(offset, offset + slots);
-    chunk.forEach(p => parts.push(encodeURIComponent(addrText(p))));
+    chunk.forEach(p => parts.push(`${p.lat},${p.lon}`));
 
     const startStop = offset + 1;
     const endStop   = offset + chunk.length;
