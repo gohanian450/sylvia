@@ -110,6 +110,15 @@
     .progress-bar-bg { height: 6px; background: #e0e0e0; border-radius: 3px; }
     .progress-bar-fg { height: 6px; background: #1a73e8; border-radius: 3px; width: 0; transition: width .3s; }
 
+    .btn-gmaps {
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 12px; padding: 10px 14px;
+      background: #fff; border: 2px solid #4285f4; border-radius: 8px;
+      color: #4285f4; font-weight: 700; font-size: .88rem;
+      text-decoration: none; transition: background .2s, color .2s;
+    }
+    .btn-gmaps:hover { background: #4285f4; color: white; }
+
     .error-box {
       background: #fce8e8; border: 1px solid #f44; border-radius: 8px;
       padding: 10px 12px; color: #c00; font-size: .84rem; display: none; margin-bottom: 10px;
@@ -171,6 +180,10 @@
     <div class="results-panel">
       <div class="error-box" id="error-box"></div>
       <div class="summary-bar" id="summary-bar"></div>
+      <a class="btn-gmaps" id="gmaps-btn" target="_blank" style="display:none">
+        <img src="https://maps.google.com/mapfiles/ms/icons/red-dot.png" style="width:16px;height:16px;vertical-align:middle;margin-right:6px">
+        Ouvrir le trajet dans Google Maps
+      </a>
       <div id="stops-list"></div>
     </div>
   </aside>
@@ -329,6 +342,7 @@ function optimizeRoute(points, startLat, startLon) {
 // ── UI helpers ────────────────────────────────────────────────────────────────
 const errorBox   = document.getElementById('error-box');
 const summaryBar = document.getElementById('summary-bar');
+const gmapsBtn   = document.getElementById('gmaps-btn');
 const stopsList  = document.getElementById('stops-list');
 const progressWrap  = document.getElementById('progress-wrap');
 const progressLabel = document.getElementById('progress-label');
@@ -337,6 +351,25 @@ const processBtn    = document.getElementById('process-btn');
 
 function showError(msg) { errorBox.textContent = msg; errorBox.style.display = 'block'; }
 function hideError()    { errorBox.style.display = 'none'; }
+
+function buildGmapsUrl(route, startLat, startLon) {
+  const geocoded = route.filter(p => p.lat != null);
+  if (!geocoded.length) return null;
+
+  // Google Maps supports up to 10 waypoints (12 total stops)
+  const MAX = 10;
+  const stops = geocoded.slice(0, MAX + 2); // origin + 10 waypoints + destination
+
+  const parts = [];
+  if (startLat != null) parts.push(`${startLat},${startLon}`);
+  stops.forEach(p => parts.push(`${p.lat},${p.lon}`));
+
+  const url = 'https://www.google.com/maps/dir/' + parts.join('/');
+  const warning = geocoded.length > MAX + 2
+    ? ` (⚠ Google Maps gratuit: ${MAX + 2} arrêts max affichés sur ${geocoded.length})`
+    : '';
+  return { url, warning };
+}
 
 function setProgress(done, total) {
   progressLabel.textContent = `Géocodage des adresses… ${done} / ${total}`;
@@ -446,6 +479,7 @@ processBtn.addEventListener('click', async () => {
   if (!selectedFile) { showError('Veuillez sélectionner un fichier PDF.'); return; }
   hideError();
   summaryBar.style.display = 'none';
+  gmapsBtn.style.display = 'none';
   stopsList.innerHTML = '';
   clearMap();
   processBtn.disabled = true;
@@ -541,6 +575,18 @@ processBtn.addEventListener('click', async () => {
     : '';
   summaryBar.style.display = 'block';
   summaryBar.innerHTML = `✅ <b>${route.length} arrêts</b> &nbsp;·&nbsp; Distance estimée : <b>${Math.round(totalKm * 10) / 10} km</b> ${providerBadge}${savingBadge}`;
+
+  // Google Maps button
+  const gmaps = buildGmapsUrl(route, startLat, startLon);
+  if (gmaps) {
+    gmapsBtn.href = gmaps.url;
+    gmapsBtn.style.display = 'flex';
+    gmapsBtn.title = gmaps.warning || '';
+    if (gmaps.warning) gmapsBtn.innerHTML += `<br><small style="font-weight:400;font-size:.72rem">${gmaps.warning}</small>`;
+  } else {
+    gmapsBtn.style.display = 'none';
+  }
+
   renderStops(route);
   drawRoute(route);
 
