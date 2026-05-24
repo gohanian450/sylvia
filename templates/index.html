@@ -10,131 +10,93 @@
     body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #222; }
 
     header {
-      background: #1a73e8;
-      color: white;
-      padding: 18px 24px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      background: #1a73e8; color: white;
+      padding: 16px 22px; display: flex; align-items: center; gap: 12px;
       box-shadow: 0 2px 6px rgba(0,0,0,.2);
     }
-    header h1 { font-size: 1.3rem; font-weight: 600; }
-    header span { font-size: 1.6rem; }
+    header h1 { font-size: 1.25rem; font-weight: 600; }
 
-    .layout {
-      display: flex;
-      height: calc(100vh - 62px);
-    }
+    .layout { display: flex; height: calc(100vh - 58px); }
 
     /* ── Sidebar ── */
     .sidebar {
-      width: 380px;
-      min-width: 300px;
-      background: white;
-      display: flex;
-      flex-direction: column;
-      border-right: 1px solid #ddd;
-      overflow: hidden;
+      width: 380px; min-width: 300px; background: white;
+      display: flex; flex-direction: column;
+      border-right: 1px solid #ddd; overflow: hidden;
     }
 
-    .upload-zone {
-      padding: 20px;
-      border-bottom: 1px solid #eee;
-    }
-    .upload-zone h2 { font-size: .95rem; color: #555; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .05em; }
+    .upload-zone { padding: 18px; border-bottom: 1px solid #eee; }
+    .upload-zone h2 { font-size: .85rem; color: #888; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
 
     .drop-area {
-      border: 2px dashed #1a73e8;
-      border-radius: 10px;
-      padding: 24px 16px;
-      text-align: center;
-      cursor: pointer;
-      transition: background .2s;
-      position: relative;
+      border: 2px dashed #1a73e8; border-radius: 10px;
+      padding: 22px 14px; text-align: center; cursor: pointer;
+      transition: background .2s; position: relative;
     }
     .drop-area:hover, .drop-area.dragover { background: #e8f0fe; }
     .drop-area input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-    .drop-area p { color: #666; font-size: .9rem; margin-top: 6px; }
-    .drop-area .icon { font-size: 2.2rem; }
+    .drop-area .icon { font-size: 2rem; }
+    .drop-area p { color: #666; font-size: .85rem; margin-top: 5px; }
+    #file-name { font-size: .8rem; color: #1a73e8; margin-top: 8px; word-break: break-all; min-height: 1em; }
 
-    #file-name { font-size: .82rem; color: #1a73e8; margin-top: 8px; word-break: break-all; }
-
-    .start-option { margin-top: 14px; }
-    .start-option label { font-size: .85rem; color: #555; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .start-option { margin-top: 12px; }
+    .start-option label { font-size: .83rem; color: #555; display: flex; align-items: center; gap: 6px; cursor: pointer; }
     .start-option input[type=text] {
       width: 100%; margin-top: 6px; padding: 8px 10px;
-      border: 1px solid #ccc; border-radius: 6px; font-size: .85rem;
+      border: 1px solid #ccc; border-radius: 6px; font-size: .83rem;
     }
+    .start-option input[type=text]:disabled { background: #f5f5f5; }
 
     .btn {
-      display: block; width: 100%; margin-top: 14px;
+      display: block; width: 100%; margin-top: 12px;
       padding: 11px; background: #1a73e8; color: white;
-      border: none; border-radius: 8px; font-size: 1rem;
+      border: none; border-radius: 8px; font-size: .95rem;
       cursor: pointer; font-weight: 600; transition: background .2s;
     }
     .btn:hover { background: #1558b0; }
     .btn:disabled { background: #9cb8f0; cursor: not-allowed; }
 
     /* ── Results ── */
-    .results-panel {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px 20px;
-    }
+    .results-panel { flex: 1; overflow-y: auto; padding: 14px 18px; }
 
     .summary-bar {
-      display: none;
-      background: #e8f0fe;
-      border-radius: 8px;
-      padding: 12px 16px;
-      margin-bottom: 14px;
-      font-size: .9rem;
-      color: #1a73e8;
-      font-weight: 600;
+      display: none; background: #e8f0fe; border-radius: 8px;
+      padding: 10px 14px; margin-bottom: 12px;
+      font-size: .88rem; color: #1a73e8; font-weight: 600;
     }
 
     .stop-card {
-      background: white;
-      border: 1px solid #e0e0e0;
-      border-radius: 10px;
-      padding: 12px 14px;
-      margin-bottom: 10px;
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-      cursor: pointer;
-      transition: box-shadow .15s, border-color .15s;
+      background: white; border: 1px solid #e0e0e0; border-radius: 10px;
+      padding: 10px 12px; margin-bottom: 8px;
+      display: flex; gap: 10px; align-items: flex-start;
+      cursor: pointer; transition: box-shadow .15s, border-color .15s;
     }
     .stop-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.1); border-color: #1a73e8; }
-    .stop-card.no-geo { opacity: .65; cursor: default; }
+    .stop-card.no-geo { opacity: .6; cursor: default; }
 
     .stop-num {
-      min-width: 32px; height: 32px;
-      background: #1a73e8; color: white;
+      min-width: 30px; height: 30px; background: #1a73e8; color: white;
       border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: .85rem;
+      font-weight: 700; font-size: .8rem; flex-shrink: 0;
     }
     .stop-num.no-geo { background: #aaa; }
 
-    .stop-info { flex: 1; }
-    .stop-raw { font-weight: 600; font-size: .88rem; color: #222; }
-    .stop-full { font-size: .78rem; color: #666; margin-top: 2px; }
-    .stop-dist { font-size: .75rem; color: #1a73e8; margin-top: 4px; }
+    .stop-info { flex: 1; min-width: 0; }
+    .stop-raw { font-weight: 600; font-size: .86rem; word-break: break-word; }
+    .stop-full { font-size: .75rem; color: #777; margin-top: 2px; word-break: break-word; }
+    .stop-dist { font-size: .73rem; color: #1a73e8; margin-top: 3px; }
+    .stop-dist.warn { color: #c00; }
 
-    /* spinner */
-    .spinner-wrap { text-align: center; padding: 40px 0; display: none; }
-    .spinner {
-      width: 40px; height: 40px; margin: 0 auto 12px;
-      border: 4px solid #e0e0e0; border-top-color: #1a73e8;
-      border-radius: 50%; animation: spin .8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner-msg { font-size: .85rem; color: #555; }
+    /* ── Progress ── */
+    .progress-wrap { display: none; padding: 10px 0 4px; }
+    .progress-label { font-size: .8rem; color: #555; margin-bottom: 5px; }
+    .progress-bar-bg { height: 6px; background: #e0e0e0; border-radius: 3px; }
+    .progress-bar-fg { height: 6px; background: #1a73e8; border-radius: 3px; width: 0; transition: width .3s; }
 
     .error-box {
       background: #fce8e8; border: 1px solid #f44; border-radius: 8px;
-      padding: 12px 14px; color: #c00; font-size: .88rem; display: none;
-      margin-bottom: 12px;
+      padding: 10px 12px; color: #c00; font-size: .84rem; display: none; margin-bottom: 10px;
+      white-space: pre-wrap; word-break: break-word;
     }
 
     /* ── Map ── */
@@ -150,60 +112,56 @@
 <body>
 
 <header>
-  <span>🚚</span>
+  <span style="font-size:1.5rem">🚚</span>
   <h1>Optimisation de livraison</h1>
 </header>
 
 <div class="layout">
-
-  <!-- ── Sidebar ── -->
   <aside class="sidebar">
     <div class="upload-zone">
-      <h2>Importer un PDF</h2>
+      <h2>Importer un PDF client</h2>
 
       <div class="drop-area" id="drop-area">
         <div class="icon">📄</div>
-        <strong>Cliquez ou glissez votre PDF ici</strong>
-        <p>Fichier de clients avec adresses</p>
+        <strong>Cliquez ou glissez votre PDF</strong>
+        <p>Fichier contenant les adresses clients</p>
         <input type="file" id="pdf-input" accept=".pdf">
       </div>
       <div id="file-name"></div>
 
       <div class="start-option">
         <label>
-          <input type="checkbox" id="use-start"> Point de départ (optionnel)
+          <input type="checkbox" id="use-start"> Point de départ (entrepôt / domicile)
         </label>
         <input type="text" id="start-address" placeholder="Ex: 1234 rue Principale, Montréal" disabled>
       </div>
 
       <button class="btn" id="process-btn" disabled>Analyser et trier les livraisons</button>
+
+      <div class="progress-wrap" id="progress-wrap">
+        <div class="progress-label" id="progress-label">Géocodage 0 / 0…</div>
+        <div class="progress-bar-bg"><div class="progress-bar-fg" id="progress-bar"></div></div>
+      </div>
     </div>
 
     <div class="results-panel">
       <div class="error-box" id="error-box"></div>
-      <div class="spinner-wrap" id="spinner">
-        <div class="spinner"></div>
-        <div class="spinner-msg" id="spinner-msg">Lecture du PDF…</div>
-      </div>
       <div class="summary-bar" id="summary-bar"></div>
       <div id="stops-list"></div>
     </div>
   </aside>
 
-  <!-- ── Map ── -->
   <div id="map"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-// ── Map setup ─────────────────────────────────────────────────────────────────
-const map = L.map('map').setView([45.5, -73.6], 11);
+// ── Map ───────────────────────────────────────────────────────────────────────
+const map = L.map('map').setView([45.5, -73.6], 10);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors'
+  attribution: '© OpenStreetMap'
 }).addTo(map);
-
-let markers = [];
-let routeLine = null;
+let markers = [], routeLine = null;
 
 function clearMap() {
   markers.forEach(m => map.removeLayer(m));
@@ -211,164 +169,232 @@ function clearMap() {
   if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
 }
 
-function addMarkers(route) {
-  const latlngs = [];
-  route.forEach((stop, i) => {
-    if (stop.lat === null) return;
-    const lat = stop.lat, lon = stop.lon;
-    const icon = L.divIcon({
-      className: '',
-      html: `<div style="
-        background:#1a73e8;color:white;border-radius:50%;width:28px;height:28px;
-        display:flex;align-items:center;justify-content:center;
-        font-weight:700;font-size:13px;border:2px solid white;
-        box-shadow:0 2px 6px rgba(0,0,0,.35);">
-        ${i + 1}</div>`,
-      iconSize: [28, 28], iconAnchor: [14, 14]
-    });
-    const marker = L.marker([lat, lon], { icon })
-      .addTo(map)
-      .bindPopup(`<b>#${i+1}</b><br>${stop.raw}<br><small>${stop.full_address}</small>`);
-    markers.push(marker);
-    latlngs.push([lat, lon]);
+function numIcon(n, color = '#1a73e8') {
+  return L.divIcon({
+    className: '',
+    html: `<div style="background:${color};color:white;border-radius:50%;width:28px;height:28px;
+      display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;
+      border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,.3)">${n}</div>`,
+    iconSize: [28, 28], iconAnchor: [14, 14]
   });
+}
 
-  if (latlngs.length > 1) {
-    routeLine = L.polyline(latlngs, { color: '#1a73e8', weight: 3, dashArray: '6 6' }).addTo(map);
+function drawRoute(route) {
+  const lls = [];
+  route.forEach((s, i) => {
+    if (s.lat == null) return;
+    const m = L.marker([s.lat, s.lon], { icon: numIcon(i + 1) }).addTo(map)
+      .bindPopup(`<b>#${i+1}</b><br>${s.raw}`);
+    markers.push(m);
+    lls.push([s.lat, s.lon]);
+  });
+  if (lls.length > 1) {
+    routeLine = L.polyline(lls, { color: '#1a73e8', weight: 3, dashArray: '7 6' }).addTo(map);
     map.fitBounds(routeLine.getBounds(), { padding: [30, 30] });
-  } else if (latlngs.length === 1) {
-    map.setView(latlngs[0], 13);
+  } else if (lls.length === 1) {
+    map.setView(lls[0], 13);
   }
 }
 
+// ── Geocoding (client-side via Nominatim) ─────────────────────────────────────
+async function geocode(address) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&countrycodes=ca`;
+  try {
+    const r = await fetch(url, { headers: { 'Accept-Language': 'fr' } });
+    const d = await r.json();
+    if (d.length) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), display: d[0].display_name };
+  } catch (_) {}
+  // retry without country restriction
+  try {
+    const url2 = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
+    const r2 = await fetch(url2, { headers: { 'Accept-Language': 'fr' } });
+    const d2 = await r2.json();
+    if (d2.length) return { lat: parseFloat(d2[0].lat), lon: parseFloat(d2[0].lon), display: d2[0].display_name };
+  } catch (_) {}
+  return null;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Nearest-neighbor route optimization ───────────────────────────────────────
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371, d2r = Math.PI / 180;
+  const dlat = (lat2 - lat1) * d2r, dlon = (lon2 - lon1) * d2r;
+  const a = Math.sin(dlat/2)**2 + Math.cos(lat1*d2r)*Math.cos(lat2*d2r)*Math.sin(dlon/2)**2;
+  return R * 2 * Math.asin(Math.sqrt(a));
+}
+
+function optimizeRoute(points, startLat, startLon) {
+  const valid = points.filter(p => p.lat != null);
+  const invalid = points.filter(p => p.lat == null);
+
+  if (!valid.length) return invalid;
+
+  const sLat = startLat ?? valid.reduce((s, p) => s + p.lat, 0) / valid.length;
+  const sLon = startLon ?? valid.reduce((s, p) => s + p.lon, 0) / valid.length;
+
+  const unvisited = [...valid];
+  const route = [];
+  let curLat = sLat, curLon = sLon;
+
+  while (unvisited.length) {
+    let best = 0, bestDist = Infinity;
+    unvisited.forEach((p, i) => {
+      const d = haversine(curLat, curLon, p.lat, p.lon);
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    const chosen = unvisited.splice(best, 1)[0];
+    chosen.distFromPrev = Math.round(bestDist * 10) / 10;
+    curLat = chosen.lat; curLon = chosen.lon;
+    route.push(chosen);
+  }
+  return [...route, ...invalid];
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+const errorBox   = document.getElementById('error-box');
+const summaryBar = document.getElementById('summary-bar');
+const stopsList  = document.getElementById('stops-list');
+const progressWrap  = document.getElementById('progress-wrap');
+const progressLabel = document.getElementById('progress-label');
+const progressBar   = document.getElementById('progress-bar');
+const processBtn    = document.getElementById('process-btn');
+
+function showError(msg) { errorBox.textContent = msg; errorBox.style.display = 'block'; }
+function hideError()    { errorBox.style.display = 'none'; }
+
+function setProgress(done, total) {
+  progressLabel.textContent = `Géocodage des adresses… ${done} / ${total}`;
+  progressBar.style.width = `${Math.round(done / total * 100)}%`;
+}
+
+function renderStops(route) {
+  stopsList.innerHTML = '';
+  route.forEach((stop, i) => {
+    const card = document.createElement('div');
+    card.className = 'stop-card' + (stop.lat == null ? ' no-geo' : '');
+    card.innerHTML = `
+      <div class="stop-num${stop.lat == null ? ' no-geo' : ''}">${i + 1}</div>
+      <div class="stop-info">
+        <div class="stop-raw">${stop.raw}</div>
+        ${stop.display && stop.display !== stop.raw
+          ? `<div class="stop-full">${stop.display}</div>` : ''}
+        ${stop.lat != null
+          ? `<div class="stop-dist">+${stop.distFromPrev} km depuis l'arrêt précédent</div>`
+          : `<div class="stop-dist warn">⚠ Adresse non géolocalisée</div>`}
+      </div>`;
+    if (stop.lat != null) {
+      card.addEventListener('click', () => {
+        map.setView([stop.lat, stop.lon], 15);
+        markers.find(m => {
+          const ll = m.getLatLng();
+          return Math.abs(ll.lat - stop.lat) < 0.0001 && Math.abs(ll.lng - stop.lon) < 0.0001;
+        })?.openPopup();
+      });
+    }
+    stopsList.appendChild(card);
+  });
+}
+
 // ── File input ────────────────────────────────────────────────────────────────
-const dropArea = document.getElementById('drop-area');
-const pdfInput = document.getElementById('pdf-input');
-const fileName = document.getElementById('file-name');
-const processBtn = document.getElementById('process-btn');
-const useStart = document.getElementById('use-start');
+const dropArea  = document.getElementById('drop-area');
+const pdfInput  = document.getElementById('pdf-input');
+const fileName  = document.getElementById('file-name');
+const useStart  = document.getElementById('use-start');
 const startAddr = document.getElementById('start-address');
 
 pdfInput.addEventListener('change', () => {
-  if (pdfInput.files[0]) {
-    fileName.textContent = pdfInput.files[0].name;
-    processBtn.disabled = false;
-  }
+  if (pdfInput.files[0]) { fileName.textContent = pdfInput.files[0].name; processBtn.disabled = false; }
 });
 dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('dragover'); });
 dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
 dropArea.addEventListener('drop', e => {
-  e.preventDefault();
-  dropArea.classList.remove('dragover');
+  e.preventDefault(); dropArea.classList.remove('dragover');
   pdfInput.files = e.dataTransfer.files;
   pdfInput.dispatchEvent(new Event('change'));
 });
 useStart.addEventListener('change', () => { startAddr.disabled = !useStart.checked; });
 
-// ── Geocode start address (client-side via Nominatim) ─────────────────────────
-async function geocodeStart(address) {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
-  const r = await fetch(url, { headers: { 'Accept-Language': 'fr' } });
-  const data = await r.json();
-  if (data.length > 0) return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
-  return null;
-}
-
-// ── Process ───────────────────────────────────────────────────────────────────
-const spinner = document.getElementById('spinner');
-const spinnerMsg = document.getElementById('spinner-msg');
-const errorBox = document.getElementById('error-box');
-const summaryBar = document.getElementById('summary-bar');
-const stopsList = document.getElementById('stops-list');
-
-function showError(msg) {
-  errorBox.textContent = msg;
-  errorBox.style.display = 'block';
-}
-function hideError() { errorBox.style.display = 'none'; }
-
+// ── Main flow ─────────────────────────────────────────────────────────────────
 processBtn.addEventListener('click', async () => {
   if (!pdfInput.files[0]) return;
   hideError();
   summaryBar.style.display = 'none';
   stopsList.innerHTML = '';
   clearMap();
-  spinner.style.display = 'block';
   processBtn.disabled = true;
+  progressWrap.style.display = 'block';
+  progressLabel.textContent = 'Lecture du PDF…';
+  progressBar.style.width = '0';
 
-  const formData = new FormData();
-  formData.append('pdf', pdfInput.files[0]);
-
-  // Optionally geocode start address
-  if (useStart.checked && startAddr.value.trim()) {
-    spinnerMsg.textContent = 'Géocodage du point de départ…';
-    const pos = await geocodeStart(startAddr.value.trim());
-    if (pos) {
-      formData.append('start_lat', pos.lat);
-      formData.append('start_lon', pos.lon);
-      // Add start marker
-      const startIcon = L.divIcon({
-        className: '',
-        html: `<div style="background:#e53935;color:white;border-radius:50%;width:32px;height:32px;
-          display:flex;align-items:center;justify-content:center;font-size:18px;
-          border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,.35);">🏠</div>`,
-        iconSize: [32, 32], iconAnchor: [16, 16]
-      });
-      const m = L.marker([pos.lat, pos.lon], { icon: startIcon }).addTo(map)
-        .bindPopup('<b>Départ</b>');
-      markers.push(m);
-    }
-  }
-
-  spinnerMsg.textContent = 'Lecture du PDF et extraction des adresses…';
-
+  // 1. Extract addresses from PDF (server)
+  const form = new FormData();
+  form.append('pdf', pdfInput.files[0]);
+  let addresses;
   try {
-    const resp = await fetch('/upload', { method: 'POST', body: formData });
+    const resp = await fetch('/extract', { method: 'POST', body: form });
     const data = await resp.json();
-    spinner.style.display = 'none';
-    processBtn.disabled = false;
-
-    if (data.error && !data.route) {
-      showError(data.error + (data.raw_text_sample ? '\n\nAperçu du texte extrait :\n' + data.raw_text_sample : ''));
+    if (data.error) {
+      showError(data.error + (data.preview ? '\n\nAperçu du texte détecté :\n' + data.preview : ''));
+      processBtn.disabled = false;
+      progressWrap.style.display = 'none';
       return;
     }
-
-    if (data.error) showError(data.error);
-
-    const route = data.route || [];
-    summaryBar.style.display = 'block';
-    summaryBar.innerHTML = `✅ <b>${data.count} arrêts</b> — Distance totale estimée : <b>${data.total_distance_km} km</b>`;
-
-    route.forEach((stop, i) => {
-      const card = document.createElement('div');
-      card.className = 'stop-card' + (stop.lat === null ? ' no-geo' : '');
-      card.innerHTML = `
-        <div class="stop-num${stop.lat === null ? ' no-geo' : ''}">${i + 1}</div>
-        <div class="stop-info">
-          <div class="stop-raw">${stop.raw}</div>
-          ${stop.full_address !== stop.raw ? `<div class="stop-full">${stop.full_address}</div>` : ''}
-          ${stop.lat !== null
-            ? `<div class="stop-dist">+${stop.distance_from_prev} km depuis l'arrêt précédent</div>`
-            : `<div class="stop-dist" style="color:#c00">⚠ Adresse non géolocalisée</div>`}
-        </div>`;
-      if (stop.lat !== null) {
-        card.addEventListener('click', () => {
-          map.setView([stop.lat, stop.lon], 15);
-          markers.find(m => {
-            const ll = m.getLatLng();
-            return Math.abs(ll.lat - stop.lat) < 0.0001 && Math.abs(ll.lng - stop.lon) < 0.0001;
-          })?.openPopup();
-        });
-      }
-      stopsList.appendChild(card);
-    });
-
-    addMarkers(route);
+    addresses = data.addresses;
   } catch (err) {
-    spinner.style.display = 'none';
-    processBtn.disabled = false;
     showError('Erreur de connexion : ' + err.message);
+    processBtn.disabled = false;
+    progressWrap.style.display = 'none';
+    return;
   }
+
+  // 2. Geocode start point
+  let startLat = null, startLon = null;
+  if (useStart.checked && startAddr.value.trim()) {
+    progressLabel.textContent = 'Géocodage du point de départ…';
+    const pos = await geocode(startAddr.value.trim());
+    if (pos) {
+      startLat = pos.lat; startLon = pos.lon;
+      const homeIcon = L.divIcon({
+        className: '',
+        html: `<div style="background:#e53935;color:white;border-radius:50%;width:32px;height:32px;
+          display:flex;align-items:center;justify-content:center;font-size:16px;
+          border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,.3)">🏠</div>`,
+        iconSize: [32, 32], iconAnchor: [16, 16]
+      });
+      markers.push(L.marker([pos.lat, pos.lon], { icon: homeIcon }).addTo(map).bindPopup('<b>Départ</b>'));
+    }
+    await sleep(1100);
+  }
+
+  // 3. Geocode all addresses (1 req/sec — Nominatim policy)
+  const points = [];
+  for (let i = 0; i < addresses.length; i++) {
+    setProgress(i, addresses.length);
+    const pos = await geocode(addresses[i]);
+    points.push({
+      raw: addresses[i],
+      lat: pos?.lat ?? null,
+      lon: pos?.lon ?? null,
+      display: pos?.display ?? null,
+      distFromPrev: 0,
+    });
+    await sleep(1100);
+  }
+  setProgress(addresses.length, addresses.length);
+
+  // 4. Optimize route
+  const route = optimizeRoute(points, startLat, startLon);
+  const totalKm = route.reduce((s, p) => s + (p.distFromPrev || 0), 0);
+
+  // 5. Render
+  summaryBar.style.display = 'block';
+  summaryBar.innerHTML = `✅ <b>${route.length} arrêts</b> &nbsp;·&nbsp; Distance estimée : <b>${Math.round(totalKm * 10) / 10} km</b>`;
+  renderStops(route);
+  drawRoute(route);
+
+  progressWrap.style.display = 'none';
+  processBtn.disabled = false;
 });
 </script>
 </body>
