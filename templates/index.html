@@ -238,7 +238,7 @@ async function geocode(address) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ── Nearest-neighbor route optimization ───────────────────────────────────────
+// ── Route optimization : nearest-neighbor + 2-opt ────────────────────────────
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371, d2r = Math.PI / 180;
   const dlat = (lat2 - lat1) * d2r, dlon = (lon2 - lon1) * d2r;
@@ -246,19 +246,17 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.asin(Math.sqrt(a));
 }
 
-function optimizeRoute(points, startLat, startLon) {
-  const valid = points.filter(p => p.lat != null);
-  const invalid = points.filter(p => p.lat == null);
+function totalDistance(route, sLat, sLon) {
+  let d = haversine(sLat, sLon, route[0].lat, route[0].lon);
+  for (let i = 0; i < route.length - 1; i++)
+    d += haversine(route[i].lat, route[i].lon, route[i+1].lat, route[i+1].lon);
+  return d;
+}
 
-  if (!valid.length) return invalid;
-
-  const sLat = startLat ?? valid.reduce((s, p) => s + p.lat, 0) / valid.length;
-  const sLon = startLon ?? valid.reduce((s, p) => s + p.lon, 0) / valid.length;
-
-  const unvisited = [...valid];
+function nearestNeighbor(points, sLat, sLon) {
+  const unvisited = [...points];
   const route = [];
   let curLat = sLat, curLon = sLon;
-
   while (unvisited.length) {
     let best = 0, bestDist = Infinity;
     unvisited.forEach((p, i) => {
@@ -266,10 +264,65 @@ function optimizeRoute(points, startLat, startLon) {
       if (d < bestDist) { bestDist = d; best = i; }
     });
     const chosen = unvisited.splice(best, 1)[0];
-    chosen.distFromPrev = Math.round(bestDist * 10) / 10;
     curLat = chosen.lat; curLon = chosen.lon;
     route.push(chosen);
   }
+  return route;
+}
+
+function twoOpt(route, sLat, sLon) {
+  // Open-path 2-opt: keep first stop free (no return to depot)
+  let improved = true;
+  while (improved) {
+    improved = false;
+    for (let i = 0; i < route.length - 1; i++) {
+      for (let j = i + 2; j < route.length; j++) {
+        // Edge A→B = route[i] → route[i+1]
+        // Edge C→D = route[j] → route[j+1]  (skip last for open path)
+        if (j + 1 >= route.length) continue;
+        const A = route[i], B = route[i+1], C = route[j], D = route[j+1];
+        const before = haversine(A.lat,A.lon,B.lat,B.lon) + haversine(C.lat,C.lon,D.lat,D.lon);
+        const after  = haversine(A.lat,A.lon,C.lat,C.lon) + haversine(B.lat,B.lon,D.lat,D.lon);
+        if (after < before - 0.001) {
+          // Reverse segment [i+1 .. j]
+          let l = i + 1, r = j;
+          while (l < r) { [route[l], route[r]] = [route[r], route[l]]; l++; r--; }
+          improved = true;
+        }
+      }
+    }
+  }
+  return route;
+}
+
+function recalcDistances(route, sLat, sLon) {
+  route.forEach((p, i) => {
+    const prev = i === 0 ? { lat: sLat, lon: sLon } : route[i-1];
+    p.distFromPrev = Math.round(haversine(prev.lat, prev.lon, p.lat, p.lon) * 10) / 10;
+  });
+}
+
+function optimizeRoute(points, startLat, startLon) {
+  const valid   = points.filter(p => p.lat != null);
+  const invalid = points.filter(p => p.lat == null);
+  if (!valid.length) return invalid;
+
+  const sLat = startLat ?? valid.reduce((s,p) => s+p.lat, 0) / valid.length;
+  const sLon = startLon ?? valid.reduce((s,p) => s+p.lon, 0) / valid.length;
+
+  // Step 1 — nearest-neighbor seed
+  const seed = nearestNeighbor(valid, sLat, sLon);
+  const distBefore = totalDistance(seed, sLat, sLon);
+
+  // Step 2 — 2-opt improvement
+  const route = twoOpt(seed, sLat, sLon);
+  const distAfter = totalDistance(route, sLat, sLon);
+
+  recalcDistances(route, sLat, sLon);
+
+  const saving = Math.round((1 - distAfter / distBefore) * 100);
+  route._saving = saving > 0 ? saving : 0;
+
   return [...route, ...invalid];
 }
 
@@ -483,8 +536,11 @@ processBtn.addEventListener('click', async () => {
   const providerBadge = provider === 'google'
     ? `<span style="font-size:.75rem;background:#34a853;color:white;padding:1px 7px;border-radius:10px;margin-left:8px">Google Maps</span>`
     : `<span style="font-size:.75rem;background:#777;color:white;padding:1px 7px;border-radius:10px;margin-left:8px">OpenStreetMap</span>`;
+  const savingBadge = route._saving > 0
+    ? `<span style="font-size:.75rem;background:#ff6f00;color:white;padding:1px 7px;border-radius:10px;margin-left:6px">2-opt −${route._saving}%</span>`
+    : '';
   summaryBar.style.display = 'block';
-  summaryBar.innerHTML = `✅ <b>${route.length} arrêts</b> &nbsp;·&nbsp; Distance estimée : <b>${Math.round(totalKm * 10) / 10} km</b> ${providerBadge}`;
+  summaryBar.innerHTML = `✅ <b>${route.length} arrêts</b> &nbsp;·&nbsp; Distance estimée : <b>${Math.round(totalKm * 10) / 10} km</b> ${providerBadge}${savingBadge}`;
   renderStops(route);
   drawRoute(route);
 
