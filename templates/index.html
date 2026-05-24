@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Optimisation de livraison</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #222; }
+
+    header {
+      background: #1a73e8;
+      color: white;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.2);
+    }
+    header h1 { font-size: 1.3rem; font-weight: 600; }
+    header span { font-size: 1.6rem; }
+
+    .layout {
+      display: flex;
+      height: calc(100vh - 62px);
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 380px;
+      min-width: 300px;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #ddd;
+      overflow: hidden;
+    }
+
+    .upload-zone {
+      padding: 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .upload-zone h2 { font-size: .95rem; color: #555; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .05em; }
+
+    .drop-area {
+      border: 2px dashed #1a73e8;
+      border-radius: 10px;
+      padding: 24px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: background .2s;
+      position: relative;
+    }
+    .drop-area:hover, .drop-area.dragover { background: #e8f0fe; }
+    .drop-area input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .drop-area p { color: #666; font-size: .9rem; margin-top: 6px; }
+    .drop-area .icon { font-size: 2.2rem; }
+
+    #file-name { font-size: .82rem; color: #1a73e8; margin-top: 8px; word-break: break-all; }
+
+    .start-option { margin-top: 14px; }
+    .start-option label { font-size: .85rem; color: #555; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .start-option input[type=text] {
+      width: 100%; margin-top: 6px; padding: 8px 10px;
+      border: 1px solid #ccc; border-radius: 6px; font-size: .85rem;
+    }
+
+    .btn {
+      display: block; width: 100%; margin-top: 14px;
+      padding: 11px; background: #1a73e8; color: white;
+      border: none; border-radius: 8px; font-size: 1rem;
+      cursor: pointer; font-weight: 600; transition: background .2s;
+    }
+    .btn:hover { background: #1558b0; }
+    .btn:disabled { background: #9cb8f0; cursor: not-allowed; }
+
+    /* ── Results ── */
+    .results-panel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+    }
+
+    .summary-bar {
+      display: none;
+      background: #e8f0fe;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+      font-size: .9rem;
+      color: #1a73e8;
+      font-weight: 600;
+    }
+
+    .stop-card {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      cursor: pointer;
+      transition: box-shadow .15s, border-color .15s;
+    }
+    .stop-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.1); border-color: #1a73e8; }
+    .stop-card.no-geo { opacity: .65; cursor: default; }
+
+    .stop-num {
+      min-width: 32px; height: 32px;
+      background: #1a73e8; color: white;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: .85rem;
+    }
+    .stop-num.no-geo { background: #aaa; }
+
+    .stop-info { flex: 1; }
+    .stop-raw { font-weight: 600; font-size: .88rem; color: #222; }
+    .stop-full { font-size: .78rem; color: #666; margin-top: 2px; }
+    .stop-dist { font-size: .75rem; color: #1a73e8; margin-top: 4px; }
+
+    /* spinner */
+    .spinner-wrap { text-align: center; padding: 40px 0; display: none; }
+    .spinner {
+      width: 40px; height: 40px; margin: 0 auto 12px;
+      border: 4px solid #e0e0e0; border-top-color: #1a73e8;
+      border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner-msg { font-size: .85rem; color: #555; }
+
+    .error-box {
+      background: #fce8e8; border: 1px solid #f44; border-radius: 8px;
+      padding: 12px 14px; color: #c00; font-size: .88rem; display: none;
+      margin-bottom: 12px;
+    }
+
+    /* ── Map ── */
+    #map { flex: 1; min-width: 0; }
+
+    @media (max-width: 680px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; height: 55vh; border-right: none; border-bottom: 1px solid #ddd; }
+      #map { height: 45vh; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span>🚚</span>
+  <h1>Optimisation de livraison</h1>
+</header>
+
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="upload-zone">
+      <h2>Importer un PDF</h2>
+
+      <div class="drop-area" id="drop-area">
+        <div class="icon">📄</div>
+        <strong>Cliquez ou glissez votre PDF ici</strong>
+        <p>Fichier de clients avec adresses</p>
+        <input type="file" id="pdf-input" accept=".pdf">
+      </div>
+      <div id="file-name"></div>
+
+      <div class="start-option">
+        <label>
+          <input type="checkbox" id="use-start"> Point de départ (optionnel)
+        </label>
+        <input type="text" id="start-address" placeholder="Ex: 1234 rue Principale, Montréal" disabled>
+      </div>
+
+      <button class="btn" id="process-btn" disabled>Analyser et trier les livraisons</button>
+    </div>
+
+    <div class="results-panel">
+      <div class="error-box" id="error-box"></div>
+      <div class="spinner-wrap" id="spinner">
+        <div class="spinner"></div>
+        <div class="spinner-msg" id="spinner-msg">Lecture du PDF…</div>
+      </div>
+      <div class="summary-bar" id="summary-bar"></div>
+      <div id="stops-list"></div>
+    </div>
+  </aside>
+
+  <!-- ── Map ── -->
+  <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── Map setup ─────────────────────────────────────────────────────────────────
+const map = L.map('map').setView([45.5, -73.6], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+let markers = [];
+let routeLine = null;
+
+function clearMap() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+}
+
+function addMarkers(route) {
+  const latlngs = [];
+  route.forEach((stop, i) => {
+    if (stop.lat === null) return;
+    const lat = stop.lat, lon = stop.lon;
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        background:#1a73e8;color:white;border-radius:50%;width:28px;height:28px;
+        display:flex;align-items:center;justify-content:center;
+        font-weight:700;font-size:13px;border:2px solid white;
+        box-shadow:0 2px 6px rgba(0,0,0,.35);">
+        ${i + 1}</div>`,
+      iconSize: [28, 28], iconAnchor: [14, 14]
+    });
+    const marker = L.marker([lat, lon], { icon })
+      .addTo(map)
+      .bindPopup(`<b>#${i+1}</b><br>${stop.raw}<br><small>${stop.full_address}</small>`);
+    markers.push(marker);
+    latlngs.push([lat, lon]);
+  });
+
+  if (latlngs.length > 1) {
+    routeLine = L.polyline(latlngs, { color: '#1a73e8', weight: 3, dashArray: '6 6' }).addTo(map);
+    map.fitBounds(routeLine.getBounds(), { padding: [30, 30] });
+  } else if (latlngs.length === 1) {
+    map.setView(latlngs[0], 13);
+  }
+}
+
+// ── File input ────────────────────────────────────────────────────────────────
+const dropArea = document.getElementById('drop-area');
+const pdfInput = document.getElementById('pdf-input');
+const fileName = document.getElementById('file-name');
+const processBtn = document.getElementById('process-btn');
+const useStart = document.getElementById('use-start');
+const startAddr = document.getElementById('start-address');
+
+pdfInput.addEventListener('change', () => {
+  if (pdfInput.files[0]) {
+    fileName.textContent = pdfInput.files[0].name;
+    processBtn.disabled = false;
+  }
+});
+dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('dragover'); });
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
+dropArea.addEventListener('drop', e => {
+  e.preventDefault();
+  dropArea.classList.remove('dragover');
+  pdfInput.files = e.dataTransfer.files;
+  pdfInput.dispatchEvent(new Event('change'));
+});
+useStart.addEventListener('change', () => { startAddr.disabled = !useStart.checked; });
+
+// ── Geocode start address (client-side via Nominatim) ─────────────────────────
+async function geocodeStart(address) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
+  const r = await fetch(url, { headers: { 'Accept-Language': 'fr' } });
+  const data = await r.json();
+  if (data.length > 0) return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+  return null;
+}
+
+// ── Process ───────────────────────────────────────────────────────────────────
+const spinner = document.getElementById('spinner');
+const spinnerMsg = document.getElementById('spinner-msg');
+const errorBox = document.getElementById('error-box');
+const summaryBar = document.getElementById('summary-bar');
+const stopsList = document.getElementById('stops-list');
+
+function showError(msg) {
+  errorBox.textContent = msg;
+  errorBox.style.display = 'block';
+}
+function hideError() { errorBox.style.display = 'none'; }
+
+processBtn.addEventListener('click', async () => {
+  if (!pdfInput.files[0]) return;
+  hideError();
+  summaryBar.style.display = 'none';
+  stopsList.innerHTML = '';
+  clearMap();
+  spinner.style.display = 'block';
+  processBtn.disabled = true;
+
+  const formData = new FormData();
+  formData.append('pdf', pdfInput.files[0]);
+
+  // Optionally geocode start address
+  if (useStart.checked && startAddr.value.trim()) {
+    spinnerMsg.textContent = 'Géocodage du point de départ…';
+    const pos = await geocodeStart(startAddr.value.trim());
+    if (pos) {
+      formData.append('start_lat', pos.lat);
+      formData.append('start_lon', pos.lon);
+      // Add start marker
+      const startIcon = L.divIcon({
+        className: '',
+        html: `<div style="background:#e53935;color:white;border-radius:50%;width:32px;height:32px;
+          display:flex;align-items:center;justify-content:center;font-size:18px;
+          border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,.35);">🏠</div>`,
+        iconSize: [32, 32], iconAnchor: [16, 16]
+      });
+      const m = L.marker([pos.lat, pos.lon], { icon: startIcon }).addTo(map)
+        .bindPopup('<b>Départ</b>');
+      markers.push(m);
+    }
+  }
+
+  spinnerMsg.textContent = 'Lecture du PDF et extraction des adresses…';
+
+  try {
+    const resp = await fetch('/upload', { method: 'POST', body: formData });
+    const data = await resp.json();
+    spinner.style.display = 'none';
+    processBtn.disabled = false;
+
+    if (data.error && !data.route) {
+      showError(data.error + (data.raw_text_sample ? '\n\nAperçu du texte extrait :\n' + data.raw_text_sample : ''));
+      return;
+    }
+
+    if (data.error) showError(data.error);
+
+    const route = data.route || [];
+    summaryBar.style.display = 'block';
+    summaryBar.innerHTML = `✅ <b>${data.count} arrêts</b> — Distance totale estimée : <b>${data.total_distance_km} km</b>`;
+
+    route.forEach((stop, i) => {
+      const card = document.createElement('div');
+      card.className = 'stop-card' + (stop.lat === null ? ' no-geo' : '');
+      card.innerHTML = `
+        <div class="stop-num${stop.lat === null ? ' no-geo' : ''}">${i + 1}</div>
+        <div class="stop-info">
+          <div class="stop-raw">${stop.raw}</div>
+          ${stop.full_address !== stop.raw ? `<div class="stop-full">${stop.full_address}</div>` : ''}
+          ${stop.lat !== null
+            ? `<div class="stop-dist">+${stop.distance_from_prev} km depuis l'arrêt précédent</div>`
+            : `<div class="stop-dist" style="color:#c00">⚠ Adresse non géolocalisée</div>`}
+        </div>`;
+      if (stop.lat !== null) {
+        card.addEventListener('click', () => {
+          map.setView([stop.lat, stop.lon], 15);
+          markers.find(m => {
+            const ll = m.getLatLng();
+            return Math.abs(ll.lat - stop.lat) < 0.0001 && Math.abs(ll.lng - stop.lon) < 0.0001;
+          })?.openPopup();
+        });
+      }
+      stopsList.appendChild(card);
+    });
+
+    addMarkers(route);
+  } catch (err) {
+    spinner.style.display = 'none';
+    processBtn.disabled = false;
+    showError('Erreur de connexion : ' + err.message);
+  }
+});
+</script>
+</body>
+</html>
