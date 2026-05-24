@@ -209,20 +209,12 @@ function drawRoute(route) {
   }
 }
 
-// ── Geocoding (client-side via Nominatim) ─────────────────────────────────────
+// ── Geocoding (via serveur — clé API gardée sécurisée) ───────────────────────
 async function geocode(address) {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&countrycodes=ca`;
   try {
-    const r = await fetch(url, { headers: { 'Accept-Language': 'fr' } });
+    const r = await fetch('/geocode?address=' + encodeURIComponent(address));
     const d = await r.json();
-    if (d.length) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), display: d[0].display_name };
-  } catch (_) {}
-  // retry without country restriction
-  try {
-    const url2 = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
-    const r2 = await fetch(url2, { headers: { 'Accept-Language': 'fr' } });
-    const d2 = await r2.json();
-    if (d2.length) return { lat: parseFloat(d2[0].lat), lon: parseFloat(d2[0].lon), display: d2[0].display_name };
+    if (d.found) return { lat: d.lat, lon: d.lon, display: d.display };
   } catch (_) {}
   return null;
 }
@@ -361,7 +353,11 @@ processBtn.addEventListener('click', async () => {
     return;
   }
 
-  // 2. Geocode start point
+  // 2. Check which geocoder is active
+  let provider = 'nominatim';
+  try { const p = await fetch('/geocode/provider'); const pd = await p.json(); provider = pd.provider; } catch (_) {}
+
+  // 3. Geocode start point
   let startLat = null, startLon = null;
   if (useStart.checked && startAddr.value.trim()) {
     progressLabel.textContent = 'Géocodage du point de départ…';
@@ -377,10 +373,9 @@ processBtn.addEventListener('click', async () => {
       });
       markers.push(L.marker([pos.lat, pos.lon], { icon: homeIcon }).addTo(map).bindPopup('<b>Départ</b>'));
     }
-    await sleep(1100);
   }
 
-  // 3. Geocode all addresses (1 req/sec — Nominatim policy)
+  // 4. Geocode all addresses
   const points = [];
   for (let i = 0; i < addresses.length; i++) {
     setProgress(i, addresses.length);
@@ -392,7 +387,6 @@ processBtn.addEventListener('click', async () => {
       display: pos?.display ?? null,
       distFromPrev: 0,
     });
-    await sleep(1100);
   }
   setProgress(addresses.length, addresses.length);
 
@@ -401,8 +395,11 @@ processBtn.addEventListener('click', async () => {
   const totalKm = route.reduce((s, p) => s + (p.distFromPrev || 0), 0);
 
   // 5. Render
+  const providerBadge = provider === 'google'
+    ? `<span style="font-size:.75rem;background:#34a853;color:white;padding:1px 7px;border-radius:10px;margin-left:8px">Google Maps</span>`
+    : `<span style="font-size:.75rem;background:#777;color:white;padding:1px 7px;border-radius:10px;margin-left:8px">OpenStreetMap</span>`;
   summaryBar.style.display = 'block';
-  summaryBar.innerHTML = `✅ <b>${route.length} arrêts</b> &nbsp;·&nbsp; Distance estimée : <b>${Math.round(totalKm * 10) / 10} km</b>`;
+  summaryBar.innerHTML = `✅ <b>${route.length} arrêts</b> &nbsp;·&nbsp; Distance estimée : <b>${Math.round(totalKm * 10) / 10} km</b> ${providerBadge}`;
   renderStops(route);
   drawRoute(route);
 
